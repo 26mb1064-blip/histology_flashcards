@@ -1,0 +1,45 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          shopt -s nullglob
+          zips=( *.zip )
+          if [ ${#zips[@]} -ne 1 ]; then echo "リポジトリのzipを1つだけにしてください（今は ${#zips[@]} 個）"; exit 1; fi
+          unzip -o "${zips[0]}" -d src
+          PROJ=$(dirname "$(find src -name settings.gradle | head -n 1)")
+          echo "PROJ=$PROJ" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build
+        working-directory: ${{ env.PROJ }}
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp "$PROJ"/app/build/outputs/apk/release/*.apk out/HistoFlash.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HistoFlash-apk
+          path: out/HistoFlash.apk
